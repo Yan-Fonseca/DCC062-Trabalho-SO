@@ -1,5 +1,14 @@
-use rand::Rng;
+use rand::{rngs::StdRng, Rng};
 use std::io; //crate para input & output
+
+#[derive(Clone, Copy)]
+struct Process{
+    process_id: i32,
+    limit_time_execution: i32, // miliseconds
+    begin_interval: i32,
+    end_interval: i32,
+    how_many_times_was_draw: i32, //quantas vezes foi sorteado
+}
 
 fn check_ticket_inside_interval(min: i32, max: i32, val: i32) -> bool{
     if min <= val && val <= max{
@@ -10,27 +19,53 @@ fn check_ticket_inside_interval(min: i32, max: i32, val: i32) -> bool{
 
 pub fn lottery_scheduler_fn() -> () {
 
+    let mut rng = rand::thread_rng();
+
     println!("Digite o número total de processos: ");
     let mut input_line = String::new();
     io::stdin().read_line(&mut input_line).expect("Falha na leitura");
     let n : usize = input_line.trim().parse().expect("Entrada não é um inteiro");
 
-    //(min, max)
-    let mut v_tickets: Vec<(i32, i32, usize)> = Vec::new(); //vetor para armazenar os tickets de cada processo
+    println!("Digite o tempo total de execução (s): ");
+    input_line.clear();
+    io::stdin().read_line(&mut input_line).expect("Falha na leitura");
+    let mut total_time : i32 = input_line.trim().parse().expect("Entrada não é um inteiro");
+    total_time *= 1000; //Conversão para milisegundos
 
+    println!("Digite o tamanho do quantum (ms): ");
+    input_line.clear();
+    io::stdin().read_line(&mut input_line).expect("Falha na leitura");
+    let quantum : i32 = input_line.trim().parse().expect("Entrada não é um inteiro");
 
-    let mut total_tickets: i32 = 0;
+    let mut v_process: Vec<Process> = Vec::new(); //vetor para armazenar os dados dos processos
+
+    let mut total_tickets: i32 = 0; // Total de tickets distribuídos
+
+    let max_tickets: i32 = n as i32 * 20; // Máximo de tickets que podem ser sorteados
+    
     for i in 0..n {
-        input_line.clear();
-        println!("P[{}]: ", i+1);
-        io::stdin().read_line(&mut input_line).expect("Falha na leitura");
-        let num: i32 = input_line.trim().parse().expect("Entrada inválida");
-        
+
+        let num = rng.gen_range(0..max_tickets); //Limite máximo de n * 20 tickets.
+        let mut begin_interval = 0;
+        let mut end_interval = 0;
+
         if i == 0{
-            v_tickets.push((0, num-1, i));
+            begin_interval = 0;
+            end_interval = num - 1;
         }else {
-            v_tickets.push((v_tickets[i-1].1 + 1, v_tickets[i-1].1 + num, i));
+            begin_interval = v_process[i-1].end_interval + 1;
+            end_interval = v_process[i-1].end_interval + num;
         }
+
+        let process = Process{
+            process_id: i as i32 + 1,
+            begin_interval: begin_interval,
+            end_interval: end_interval,
+            limit_time_execution: rng.gen_range(50..800),
+            how_many_times_was_draw: 0
+        };
+
+        v_process.push(process);
 
         total_tickets += num;
     }
@@ -39,45 +74,66 @@ pub fn lottery_scheduler_fn() -> () {
     // 2 -> 1 -> 3 -> 4
     // 4 processos: 0:14; 2 | 15:24; 1 |...
 
-    let mut sorted_index_by_num_tickets: Vec<(i32, i32, usize)> = Vec::new();
-    let mut how_many_time_was_draw: Vec<i32> = vec![0; n];
-
+    let mut sorted_index_by_num_tickets: Vec<Process> = Vec::new();
+    
     for _i in 0..n{
         //Ordena os índices pelo número de tickets para tornar mais eficiente a checagem dos sorteios.
-        let max_index = v_tickets.iter().enumerate().max_by_key(|(_idx, &val)| val.1 - val.0 + 1).unwrap();
+        let max_index = v_process.iter().enumerate().max_by_key(|(_idx, &val)| val.end_interval - val.begin_interval + 1).unwrap();
         sorted_index_by_num_tickets.push(*max_index.1);
-        v_tickets.remove(max_index.0);
+        v_process.remove(max_index.0);
     }
-
-    println!("Impressão dos Intervalos Ordenados pelo tamanho");
+    
+    println!("Dados Pré-Execução do Escalonamento");
+    println!("Num Processos: {n}");
+    println!("Tempo total (s): {total_time}");
+    println!("Tamanho quantum (ms): {quantum}");
     for i in 0..n{
-        println!("ProcessId: {} | Min: {} | Max: {} | NumTickets: {}", sorted_index_by_num_tickets[i].2, sorted_index_by_num_tickets[i].0, sorted_index_by_num_tickets[i].1, sorted_index_by_num_tickets[i].1 - sorted_index_by_num_tickets[i].0 + 1);
+        println!("ProcessId: {} | Min: {} | Max: {} | NumTickets: {} | Limit_Time_Execution: {}", sorted_index_by_num_tickets[i].process_id, sorted_index_by_num_tickets[i].begin_interval, sorted_index_by_num_tickets[i].end_interval, sorted_index_by_num_tickets[i].end_interval - sorted_index_by_num_tickets[i].begin_interval + 1, sorted_index_by_num_tickets[i].limit_time_execution);
     }
-
-    input_line.clear();
-    println!("Digite a quantidade de sorteios: ");
-    io::stdin().read_line(&mut input_line).expect("Falha na leitura");
-    let num_sorteios: i32 = input_line.trim().parse().expect("Entrada inválida");
-
-    let mut i: i32 = 0;
-    let mut rng = rand::thread_rng();
-    while i < num_sorteios {
-        let random_value = rng.gen_range(0..(total_tickets-1));
-        println!("Valor Aleatório Sorteado: {}", random_value);
+    
+    while total_time > 0 {
+        let random_value = rng.gen_range(0..(total_tickets-1)); //Sorteia um valor de ticket qualquer;
+        println!("Ticket Sorteado: {}", random_value);
         
         let mut cond: bool;
         for j in 0..n{
-            cond = check_ticket_inside_interval(sorted_index_by_num_tickets[j].0, sorted_index_by_num_tickets[j].1, random_value);
-            if cond{
-                how_many_time_was_draw[sorted_index_by_num_tickets[j].2] += 1;
+
+            cond = check_ticket_inside_interval(sorted_index_by_num_tickets[j].begin_interval, sorted_index_by_num_tickets[j].end_interval, random_value);
+            
+            if cond && sorted_index_by_num_tickets[j].limit_time_execution > 0{
+                
+                if sorted_index_by_num_tickets[j].limit_time_execution < quantum{
+                    println!("Id Do Processo Sortudo: {}", sorted_index_by_num_tickets[j].process_id);
+                    total_time -= sorted_index_by_num_tickets[j].limit_time_execution;
+                    sorted_index_by_num_tickets[j].limit_time_execution = 0;
+                }else {
+                    println!("Id Do Processo Sortudo: {}", sorted_index_by_num_tickets[j].process_id);
+                    sorted_index_by_num_tickets[j].limit_time_execution -= quantum;
+                    total_time -= quantum;
+                }
+                sorted_index_by_num_tickets[j].how_many_times_was_draw += 1;
+                break;
+            }else if cond && sorted_index_by_num_tickets[j].limit_time_execution <= 0{
+                //Sorteou um ticket para quem não tem mais tempo.
                 break;
             }
         }
 
-        i += 1;
+        let mut num_zeros = 0;
+        for i in 0..n{
+            if(sorted_index_by_num_tickets[i].limit_time_execution == 0){
+                num_zeros += 1;
+            }
+        }
+
+        if num_zeros == n{
+            break; //quebrar o while externo quando todos os processos já estiverem com tempo 0.
+        }
     }
 
     for i in 0..n{
-        println!("ProcessID: {} | Total Vezes Sorteado: {}", i, how_many_time_was_draw[i]);
+        println!("ProcessId: {} | Min: {} | Max: {} | NumTickets: {} | Limit_Time_Execution: {} | Quantas vezes foi sorteado: {}", sorted_index_by_num_tickets[i].process_id, sorted_index_by_num_tickets[i].begin_interval, sorted_index_by_num_tickets[i].end_interval, sorted_index_by_num_tickets[i].end_interval - sorted_index_by_num_tickets[i].begin_interval + 1, sorted_index_by_num_tickets[i].limit_time_execution, sorted_index_by_num_tickets[i].how_many_times_was_draw);
     }
+
+    
 }

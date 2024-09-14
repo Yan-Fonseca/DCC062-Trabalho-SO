@@ -1,3 +1,5 @@
+#[allow(unused)]
+
 mod lottery_scheduler;
 // mod fcfs;
 
