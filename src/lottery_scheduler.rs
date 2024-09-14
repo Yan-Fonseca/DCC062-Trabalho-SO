@@ -107,7 +107,7 @@ pub fn lottery_scheduler_fn() -> () {
         .expect("Erro ao fazer a subtração do Tempo");
     
     // Usa os segundos do tempo atual como seed
-    let seed: u64 = 1726342225;
+    let seed: u64 = current_time.as_secs();
 
     println!("Semente de Reprodutibilidade: {seed}");
     
