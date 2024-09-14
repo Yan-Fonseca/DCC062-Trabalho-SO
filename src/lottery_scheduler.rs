@@ -1,5 +1,11 @@
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, SeedableRng};   // Importa os traits necessários
+use rand::rngs::StdRng;
+
 use std::io; //crate para input & output
+use prettytable::{Table, Row, Cell};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::fs::File;
+use std::io::Write;
 
 #[derive(Clone, Copy)]
 struct Process{
@@ -17,9 +23,101 @@ fn check_ticket_inside_interval(min: i32, max: i32, val: i32) -> bool{
     false
 }
 
+fn print_scheduling_data(n: usize, total_time: i32, quantum: i32, sorted_index_by_num_tickets: &Vec<Process>, how_many_times_draw: bool, general_table: bool) {
+    let mut table = Table::new();
+
+    // Cabeçalho da tabela
+    
+
+    // Linhas da tabela
+    if !how_many_times_draw{
+        table.add_row(Row::new(vec![
+            Cell::new("Id do Processo"),
+            Cell::new("Começo do Intervalo"),
+            Cell::new("Fim do Intervalo"),
+            Cell::new("Número de Tickets"),
+            Cell::new("Tempo Limite de Execução"),
+        ]));
+
+        for process in sorted_index_by_num_tickets {
+            let row = Row::new(vec![
+                Cell::new(&process.process_id.to_string()),
+                Cell::new(&process.begin_interval.to_string()),
+                Cell::new(&process.end_interval.to_string()),
+                Cell::new(&(process.end_interval - process.begin_interval + 1).to_string()),
+                Cell::new(&process.limit_time_execution.to_string()),
+            ]);
+            table.add_row(row);
+        }
+    } else {
+        table.add_row(Row::new(vec![
+            Cell::new("Id do Processo"),
+            Cell::new("Começo do Intervalo"),
+            Cell::new("Fim do Intervalo"),
+            Cell::new("Número de Tickets"),
+            Cell::new("Tempo Final Restante"),
+            Cell::new("Quantas Vezes Foi Sorteado")
+        ]));
+
+        for process in sorted_index_by_num_tickets {
+            let row = Row::new(vec![
+                Cell::new(&process.process_id.to_string()),
+                Cell::new(&process.begin_interval.to_string()),
+                Cell::new(&process.end_interval.to_string()),
+                Cell::new(&(process.end_interval - process.begin_interval + 1).to_string()),
+                Cell::new(&process.limit_time_execution.to_string()),
+                Cell::new(&process.how_many_times_was_draw.to_string())
+            ]);
+            table.add_row(row);
+        }
+    }
+    
+
+    if(general_table){
+        let mut table2 = Table::new();
+    
+        // Linhas com os dados gerais
+        table2.add_row(Row::new(vec![
+            Cell::new("Número de Processos"),
+            Cell::new(&n.to_string()),
+        ]));
+        table2.add_row(Row::new(vec![
+            Cell::new("Tempo total (ms)"),
+            Cell::new(&total_time.to_string()),
+        ]));
+        table2.add_row(Row::new(vec![
+            Cell::new("Tamanho Quantum (ms)"),
+            Cell::new(&quantum.to_string()),
+        ]));
+    
+        // Imprime a tabela
+        table2.printstd();
+
+        println!("");
+    }
+   
+
+    table.printstd();
+}
+
 pub fn lottery_scheduler_fn() -> () {
 
-    let mut rng = rand::thread_rng();
+    let current_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Erro ao fazer a subtração do Tempo");
+    
+    // Usa os segundos do tempo atual como seed
+    let seed: u64 = current_time.as_secs();
+
+    println!("Semente de Reprodutibilidade: {seed}");
+    
+    // Converta o valor da seed para um array de 32 bytes (necessário pelo StdRng)
+    let seed_bytes = seed.to_le_bytes();  // Converte o u64 para um array de 8 bytes
+    let mut rng = StdRng::from_seed([
+        seed_bytes[0], seed_bytes[1], seed_bytes[2], seed_bytes[3],
+        seed_bytes[4], seed_bytes[5], seed_bytes[6], seed_bytes[7],
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ]);
 
     println!("Digite o número total de processos: ");
     let mut input_line = String::new();
@@ -45,7 +143,7 @@ pub fn lottery_scheduler_fn() -> () {
     
     for i in 0..n {
 
-        let num = rng.gen_range(0..max_tickets); //Limite máximo de n * 20 tickets.
+        let num = rng.gen_range(5..max_tickets); //Limite máximo de n * 20 tickets.
         let mut begin_interval = 0;
         let mut end_interval = 0;
 
@@ -61,7 +159,7 @@ pub fn lottery_scheduler_fn() -> () {
             process_id: i as i32 + 1,
             begin_interval: begin_interval,
             end_interval: end_interval,
-            limit_time_execution: rng.gen_range(50..800),
+            limit_time_execution: rng.gen_range(800..8000),
             how_many_times_was_draw: 0
         };
 
@@ -82,18 +180,16 @@ pub fn lottery_scheduler_fn() -> () {
         sorted_index_by_num_tickets.push(*max_index.1);
         v_process.remove(max_index.0);
     }
-    
-    println!("Dados Pré-Execução do Escalonamento");
-    println!("Num Processos: {n}");
-    println!("Tempo total (s): {total_time}");
-    println!("Tamanho quantum (ms): {quantum}");
-    for i in 0..n{
-        println!("ProcessId: {} | Min: {} | Max: {} | NumTickets: {} | Limit_Time_Execution: {}", sorted_index_by_num_tickets[i].process_id, sorted_index_by_num_tickets[i].begin_interval, sorted_index_by_num_tickets[i].end_interval, sorted_index_by_num_tickets[i].end_interval - sorted_index_by_num_tickets[i].begin_interval + 1, sorted_index_by_num_tickets[i].limit_time_execution);
-    }
-    
+
+    println!("");
+    print_scheduling_data(n, total_time, quantum, &sorted_index_by_num_tickets, false, true);
+    println!("");
+
+    // panic!("Mensagem");
+
     while total_time > 0 {
         let random_value = rng.gen_range(0..(total_tickets-1)); //Sorteia um valor de ticket qualquer;
-        println!("Ticket Sorteado: {}", random_value);
+        println!("# Valor do Ticket Sorteado: {}", random_value);
         
         let mut cond: bool;
         for j in 0..n{
@@ -103,11 +199,9 @@ pub fn lottery_scheduler_fn() -> () {
             if cond && sorted_index_by_num_tickets[j].limit_time_execution > 0{
                 
                 if sorted_index_by_num_tickets[j].limit_time_execution < quantum{
-                    println!("Id Do Processo Sortudo: {}", sorted_index_by_num_tickets[j].process_id);
                     total_time -= sorted_index_by_num_tickets[j].limit_time_execution;
                     sorted_index_by_num_tickets[j].limit_time_execution = 0;
                 }else {
-                    println!("Id Do Processo Sortudo: {}", sorted_index_by_num_tickets[j].process_id);
                     sorted_index_by_num_tickets[j].limit_time_execution -= quantum;
                     total_time -= quantum;
                 }
@@ -131,9 +225,11 @@ pub fn lottery_scheduler_fn() -> () {
         }
     }
 
-    for i in 0..n{
-        println!("ProcessId: {} | Min: {} | Max: {} | NumTickets: {} | Limit_Time_Execution: {} | Quantas vezes foi sorteado: {}", sorted_index_by_num_tickets[i].process_id, sorted_index_by_num_tickets[i].begin_interval, sorted_index_by_num_tickets[i].end_interval, sorted_index_by_num_tickets[i].end_interval - sorted_index_by_num_tickets[i].begin_interval + 1, sorted_index_by_num_tickets[i].limit_time_execution, sorted_index_by_num_tickets[i].how_many_times_was_draw);
-    }
+    sorted_index_by_num_tickets.sort_by_key(|f| f.process_id); //Ordena para pegar em ordem crescente
 
-    
+    println!("");
+    print_scheduling_data(n, total_time, quantum, &sorted_index_by_num_tickets, true, false);
+
+    println!("# Tempo Total Restante de Execução: {total_time}");
+
 }
