@@ -107,7 +107,7 @@ pub fn lottery_scheduler_fn() -> () {
         .expect("Erro ao fazer a subtração do Tempo");
     
     // Usa os segundos do tempo atual como seed
-    let seed: u64 = current_time.as_secs();
+    let seed: u64 = 1726342225;
 
     println!("Semente de Reprodutibilidade: {seed}");
     
@@ -199,11 +199,22 @@ pub fn lottery_scheduler_fn() -> () {
             if cond && sorted_index_by_num_tickets[j].limit_time_execution > 0{
                 
                 if sorted_index_by_num_tickets[j].limit_time_execution < quantum{
-                    total_time -= sorted_index_by_num_tickets[j].limit_time_execution;
-                    sorted_index_by_num_tickets[j].limit_time_execution = 0;
+                    if total_time - quantum >= 0{
+                        total_time -= sorted_index_by_num_tickets[j].limit_time_execution;
+                        sorted_index_by_num_tickets[j].limit_time_execution = 0;
+                    }else{
+                        sorted_index_by_num_tickets[j].limit_time_execution -= total_time;
+                        total_time = 0;
+                    }
                 }else {
-                    sorted_index_by_num_tickets[j].limit_time_execution -= quantum;
-                    total_time -= quantum;
+                    
+                    if total_time - quantum >= 0{
+                        sorted_index_by_num_tickets[j].limit_time_execution -= quantum;
+                        total_time -= quantum;
+                    }else{
+                        sorted_index_by_num_tickets[j].limit_time_execution -= total_time;
+                        total_time = 0;
+                    }
                 }
                 sorted_index_by_num_tickets[j].how_many_times_was_draw += 1;
                 break;
